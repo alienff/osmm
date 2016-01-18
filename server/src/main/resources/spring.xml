@@ -16,7 +16,7 @@
 
     <bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" p:location="${osmm.properties.location}" p:fileEncoding="utf-8" />
 
-    <bean id="dataSource" class="org.postgresql.jdbc2.optional.SimpleDataSource"
+    <bean id="dataSource" class="com.mysql.jdbc.jdbc2.optional.MysqlDataSource"
           p:serverName="${db.host}" p:databaseName="${db.name}" p:user="${db.user}" p:password="${db.password}" />
     <bean id="jpaDialect" class="org.springframework.orm.jpa.vendor.HibernateJpaDialect" />
     <bean id="entityManagerFactory" class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean"
