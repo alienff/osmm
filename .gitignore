@@ -2,3 +2,4 @@
 *.iml
 /osmm.properties
 /server/target/
+/server/dependency-reduced-pom.xml
