@@ -15,7 +15,11 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletResponse;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.emptySet;
 
 /**
  * @author mike
@@ -69,8 +73,9 @@ public class OsmmController {
     @RequestMapping("/get-all")
     @ResponseBody
     @Transactional(readOnly = true)
-    public List<Point> getAll() {
+    public List<Point> getAll(@RequestParam String key) throws HttpException {
         log.debug("Get all points");
+        checkKey(key, true, emptySet());
         final List<Point> points = em.createQuery("select p from Point p", Point.class).getResultList();
         points.forEach(point -> point.getUser().setPassword(null));
         return points;
@@ -79,8 +84,9 @@ public class OsmmController {
     @RequestMapping(value = "/get-all", params = "login")
     @ResponseBody
     @Transactional(readOnly = true)
-    public List<Point> getAllForUser(@RequestParam String login) {
+    public List<Point> getAllForUser(@RequestParam String login, @RequestParam String key) throws HttpException {
         log.debug("Get all points for user {}", login);
+        checkKey(key, false, Collections.singleton(login));
         final List<Point> points = em.createQuery("select p from Point p where p.user.login = :login", Point.class)
                 .setParameter("login", login).getResultList();
         points.forEach(point -> point.setUser(null));
@@ -107,6 +113,18 @@ public class OsmmController {
             em.persist(user);
         }
         return user;
+    }
+
+    private void checkKey(String key, boolean mustBeForAllUsers, Collection<String> mustBeForTheseUsers) throws HttpException {
+        final List<ApiKey> keys = em.createQuery("select k from ApiKey k where k.key = :key", ApiKey.class)
+                .setParameter("key", key).setMaxResults(1).getResultList();
+        if (keys.size() > 0) {
+            final ApiKey apiKey = keys.get(0);
+            if (mustBeForAllUsers && !apiKey.isAllUsers()) throw new HttpException(403, "api.key.must.be.for.all.users");
+            if (!apiKey.isAllUsers() && !apiKey.getUsers().containsAll(mustBeForTheseUsers)) throw new HttpException(403, "api.key.not.valid.for.certain.users");
+        } else {
+            throw new HttpException(403, "api.key.not.found");
+        }
     }
 
     @ExceptionHandler(HttpException.class)
