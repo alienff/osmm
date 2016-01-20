@@ -1,5 +1,5 @@
 /.idea/
 *.iml
-/osmm.properties
+/opt/
 /server/target/
 /server/dependency-reduced-pom.xml
