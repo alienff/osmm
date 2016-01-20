@@ -22,7 +22,7 @@ public class ApiKey extends AbstractEntity {
     private String usersRaw;
     private boolean allUsers;
 
-    @Column(name = "key")
+    @Column(name = "api_key")
     public String getKey() {
         return key;
     }
