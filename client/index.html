@@ -29,6 +29,17 @@
             <input id="layer-{{layer.user.name}}" type="checkbox" ng-model="layer.checked" ng-click="layerCheckboxOnClick(layer)" />
         </div>
     </div>
+    <div>
+        <div>Tracking type</div>
+        <div>
+            <label for="tracking-type-all">All</label>:
+            <input type="radio" name="tracking-type" value="all" id="tracking-type-all" ng-model="trackingType" />
+        </div>
+        <div>
+            <label for="tracking-type-last-one">Last one</label>:
+            <input type="radio" name="tracking-type" value="last-one" id="tracking-type-last-one" ng-model="trackingType" />
+        </div>
+    </div>
 </div>
 <div id="map"></div>
 </body>

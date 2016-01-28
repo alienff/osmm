@@ -12,15 +12,25 @@ function initMap() {
 angular.module('osmm', [])
     .controller('OsmmController', function($scope, $http) {
         $scope.endpoint = "/server";
-
         $scope.layers = [];
+        $scope.trackingType = "all";
+
+        var createPointPopup = function(point) {
+            return L.popup().setContent("<pre>" + JSON.stringify(point, null, " ") + "</pre>");
+        };
 
         var createTrackLayer = function(track, color) {
             var latlngs = [];
+            var trackLayer = L.layerGroup();
             $.each(track.points, function(pointIndex, point) {
-                latlngs.push(L.latLng(point.lat, point.lon, point.altitude));
+                var latLng = L.latLng(point.lat, point.lon, point.altitude);
+                latlngs.push(latLng);
+                L.circle(latLng, 0, {color: color, weight: 10})
+                    .bindPopup(createPointPopup(point))
+                    .addTo(trackLayer);
             });
-            return L.polyline(latlngs, {color: color});
+            L.polyline(latlngs, {color: color, clickable: false}).addTo(trackLayer);
+            return trackLayer;
         };
 
         var createUserLayer = function(userName, trackLayers, color) {
@@ -65,8 +75,19 @@ angular.module('osmm', [])
             });
         };
 
+        var getUrlSuffix = function() {
+            switch ($scope.trackingType) {
+                case "all":
+                    return "/get-all";
+                case "last-one":
+                    return "get-last-one";
+                default:
+                    return null;
+            }
+        };
+
         $scope.loadDataOnClick = function() {
-            loadDataForUrl($scope.endpoint + "/get-all?key=" + $scope.apiKey);
+            loadDataForUrl($scope.endpoint + getUrlSuffix() + "?key=" + $scope.apiKey);
         };
         $scope.layerCheckboxOnClick = function(layer) {
             if (layer.checked) {

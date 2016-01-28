@@ -1,6 +1,7 @@
 package com.alienff.osmm.server.entity;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -10,6 +11,14 @@ import java.util.Objects;
  */
 public class Track {
     private List<Point> points = new ArrayList<>();
+
+    public Track() {
+    }
+
+    public Track(Point... points) {
+        this.points = new ArrayList<>(points.length);
+        Collections.addAll(this.points, points);
+    }
 
     public List<Point> getPoints() {
         return points;

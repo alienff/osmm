@@ -17,6 +17,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.time.Instant;
 import java.util.*;
 
+import static com.alienff.osmm.server.OsmmControllerHelper.findSingleResult;
+import static com.alienff.osmm.server.OsmmControllerHelper.fromSinglePoint;
+import static com.alienff.osmm.server.OsmmControllerHelper.splitToTracks;
 import static java.util.Collections.emptySet;
 
 /**
@@ -76,11 +79,11 @@ public class OsmmController {
     public Map<String, List<Track>> getAll(@RequestParam String key) throws HttpException {
         log.debug("Get all points");
         checkKey(key, true, emptySet());
-        final List<Point> allPoints = em.createQuery("select p from Point p", Point.class).getResultList();
+        final List<Point> allPoints = em.createQuery("select p from Point p order by p.timestampRaw desc", Point.class).getResultList();
         final Map<String, List<Point>> userPoints = new HashMap<>();
         allPoints.forEach(point -> userPoints.computeIfAbsent(point.getUser().getLogin(), o -> new ArrayList<>()).add(point));
         final Map<String, List<Track>> result = new HashMap<>(userPoints.size());
-        userPoints.entrySet().forEach(entry -> result.put(entry.getKey(), splitToTracks(entry.getValue())));
+        userPoints.entrySet().forEach(entry -> result.put(entry.getKey(), splitToTracks(entry.getValue(), TRACK_DELAY_THRESHOLD)));
         return result;
     }
 
@@ -90,30 +93,26 @@ public class OsmmController {
     public List<Track> getAllForUser(@RequestParam String login, @RequestParam String key) throws HttpException {
         log.debug("Get all points for user {}", login);
         checkKey(key, false, Collections.singleton(login));
-        final List<Point> points = em.createQuery("select p from Point p where p.user.login = :login", Point.class)
+        final List<Point> points = em.createQuery("select p from Point p where p.user.login = :login order by p.timestampRaw desc", Point.class)
                 .setParameter("login", login).getResultList();
-        return splitToTracks(points);
+        return splitToTracks(points, TRACK_DELAY_THRESHOLD);
     }
 
-    private static List<Track> splitToTracks(Iterable<? extends Point> points) {
-        final List<Track> result = new ArrayList<>();
-        Instant last = Instant.MIN;
-        Track track = null;
-        for (Point point : points) {
-            if (point.getTimestamp().isAfter(last.plusSeconds(TRACK_DELAY_THRESHOLD))) {
-                if (track != null) {
-                    result.add(track);
-                }
-                track = new Track();
+    @RequestMapping("/get-last-one")
+    @ResponseBody
+    @Transactional(readOnly = true)
+    public Map<String, List<Track>> getLastOnes(@RequestParam String key) throws HttpException {
+        log.debug("Get last point for everybody");
+        checkKey(key, true, emptySet());
+        final List<User> users = em.createQuery("select u from User u", User.class).getResultList();
+        final Map<String, List<Track>> result = new HashMap<>(users.size());
+        for (User user : users) {
+            final Point point = findSingleResult(
+                    em.createQuery("select p from Point p where p.user = :user order by p.timestampRaw desc", Point.class).setParameter("user", user));
+            if (point != null) {
+                result.put(user.getLogin(), fromSinglePoint(point));
             }
-            if (track != null) {
-                track.getPoints().add(point);
-            } else {
-                throw new IllegalStateException();
-            }
-            last = point.getTimestamp();
         }
-        result.add(track);
         return result;
     }
 
@@ -121,11 +120,11 @@ public class OsmmController {
         if (login.length() == 0 || password.length() == 0) {
             throw new HttpException(401, "login.password.nonnull");
         }
-        final List<User> existingUsers = em.createQuery("select u from User u where u.login = :login", User.class)
-                .setParameter("login", login).setMaxResults(1).getResultList();
+        final User existingUser = findSingleResult(
+                em.createQuery("select u from User u where u.login = :login", User.class).setParameter("login", login));
         final User user;
-        if (existingUsers.size() > 0) { // Existing user, check pwd
-            user = existingUsers.get(0);
+        if (existingUser != null) { // Existing user, check pwd
+            user = existingUser;
             if (!user.getPassword().equals(password)) {
                 throw new HttpException(403, "password.invalid");
             }
@@ -140,10 +139,9 @@ public class OsmmController {
     }
 
     private void checkKey(String key, boolean mustBeForAllUsers, Collection<String> mustBeForTheseUsers) throws HttpException {
-        final List<ApiKey> keys = em.createQuery("select k from ApiKey k where k.key = :key", ApiKey.class)
-                .setParameter("key", key).setMaxResults(1).getResultList();
-        if (keys.size() > 0) {
-            final ApiKey apiKey = keys.get(0);
+        final ApiKey apiKey = findSingleResult(
+                em.createQuery("select k from ApiKey k where k.key = :key", ApiKey.class).setParameter("key", key));
+        if (apiKey != null) {
             if (mustBeForAllUsers && !apiKey.isAllUsers()) throw new HttpException(403, "api.key.must.be.for.all.users");
             if (!apiKey.isAllUsers() && !apiKey.getUsers().containsAll(mustBeForTheseUsers)) throw new HttpException(403, "api.key.not.valid.for.certain.users");
         } else {
