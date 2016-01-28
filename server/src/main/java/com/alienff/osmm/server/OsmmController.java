@@ -15,9 +15,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.servlet.http.HttpServletResponse;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static java.util.Collections.emptySet;
 
@@ -28,6 +26,8 @@ import static java.util.Collections.emptySet;
 @Controller
 public class OsmmController {
     private static final Logger log = LoggerFactory.getLogger(OsmmController.class);
+
+    private static final int TRACK_DELAY_THRESHOLD = 60*10; // seconds
 
     @PersistenceContext
     private EntityManager em;
@@ -73,24 +73,48 @@ public class OsmmController {
     @RequestMapping("/get-all")
     @ResponseBody
     @Transactional(readOnly = true)
-    public List<Point> getAll(@RequestParam String key) throws HttpException {
+    public Map<String, List<Track>> getAll(@RequestParam String key) throws HttpException {
         log.debug("Get all points");
         checkKey(key, true, emptySet());
-        final List<Point> points = em.createQuery("select p from Point p", Point.class).getResultList();
-        points.forEach(point -> point.getUser().setPassword(null));
-        return points;
+        final List<Point> allPoints = em.createQuery("select p from Point p", Point.class).getResultList();
+        final Map<String, List<Point>> userPoints = new HashMap<>();
+        allPoints.forEach(point -> userPoints.computeIfAbsent(point.getUser().getLogin(), o -> new ArrayList<>()).add(point));
+        final Map<String, List<Track>> result = new HashMap<>(userPoints.size());
+        userPoints.entrySet().forEach(entry -> result.put(entry.getKey(), splitToTracks(entry.getValue())));
+        return result;
     }
 
     @RequestMapping(value = "/get-all", params = "login")
     @ResponseBody
     @Transactional(readOnly = true)
-    public List<Point> getAllForUser(@RequestParam String login, @RequestParam String key) throws HttpException {
+    public List<Track> getAllForUser(@RequestParam String login, @RequestParam String key) throws HttpException {
         log.debug("Get all points for user {}", login);
         checkKey(key, false, Collections.singleton(login));
         final List<Point> points = em.createQuery("select p from Point p where p.user.login = :login", Point.class)
                 .setParameter("login", login).getResultList();
-        points.forEach(point -> point.setUser(null));
-        return points;
+        return splitToTracks(points);
+    }
+
+    private static List<Track> splitToTracks(Iterable<? extends Point> points) {
+        final List<Track> result = new ArrayList<>();
+        Instant last = Instant.MIN;
+        Track track = null;
+        for (Point point : points) {
+            if (point.getTimestamp().isAfter(last.plusSeconds(TRACK_DELAY_THRESHOLD))) {
+                if (track != null) {
+                    result.add(track);
+                }
+                track = new Track();
+            }
+            if (track != null) {
+                track.getPoints().add(point);
+            } else {
+                throw new IllegalStateException();
+            }
+            last = point.getTimestamp();
+        }
+        result.add(track);
+        return result;
     }
 
     private User getOrAddUser(String login, String password) throws HttpException {

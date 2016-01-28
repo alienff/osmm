@@ -1,5 +1,4 @@
 var map;
-var layers = [];
 
 function initMap() {
     map = L.map('map')
@@ -10,19 +9,72 @@ function initMap() {
     }).addTo(map);
 }
 
-function loadData(url) {
-    $.ajax(url, {
-        success: function(data) {
+angular.module('osmm', [])
+    .controller('OsmmController', function($scope, $http) {
+        $scope.endpoint = "/server";
+
+        $scope.layers = [];
+
+        var createTrackLayer = function(track, color) {
             var latlngs = [];
-            for (var i = 0; i < data.length; i++) {
-                var point = data[i];
+            $.each(track.points, function(pointIndex, point) {
                 latlngs.push(L.latLng(point.lat, point.lon, point.altitude));
-            }
-            $.each(layers, function(index, layer) {
-                map.removeLayer(layer);
             });
-            var polyline = L.polyline(latlngs, {color: 'red'}).addTo(map);
-            layers.push(polyline);
-        }
+            return L.polyline(latlngs, {color: color});
+        };
+
+        var createUserLayer = function(userName, trackLayers, color) {
+            var userLayer = L.layerGroup(trackLayers);
+            userLayer.userName = userName;
+            userLayer.checked = true;
+            userLayer.color = color;
+            return userLayer;
+        };
+
+        var randomColor = function() {
+            var safeColors = ['00','33','66','99','cc','ff'];
+            var rand = function() {
+                return Math.floor(Math.random()*6);
+            };
+            var r = safeColors[rand()];
+            var g = safeColors[rand()];
+            var b = safeColors[rand()];
+            return "#"+r+g+b;
+        };
+
+        var loadDataForUrl = function(url) {
+            $http.get(url).then(function(response) {
+                $.each($scope.layers, function(layerIndex, layer) {
+                    map.removeLayer(layer);
+                });
+                $scope.layers = [];
+                var data = response.data;
+                $.each(data, function(userName, tracks) { // Per user
+                    var color = randomColor();
+                    var trackLayers = [];
+                    $.each(tracks, function(trackIndex, track) { // Per track
+                        var trackLayer = createTrackLayer(track, color);
+                        trackLayers.push(trackLayer);
+                    });
+                    var userLayer = createUserLayer(userName, trackLayers, color);
+                    userLayer.addTo(map);
+                    $scope.layers.push(userLayer);
+                });
+            }, function(respose) {
+                alert("Error:\n" + respose.data);
+            });
+        };
+
+        $scope.loadDataOnClick = function() {
+            loadDataForUrl($scope.endpoint + "/get-all?key=" + $scope.apiKey);
+        };
+        $scope.layerCheckboxOnClick = function(layer) {
+            if (layer.checked) {
+                map.addLayer(layer);
+            } else {
+                map.removeLayer(layer);
+            }
+        };
     });
-}
+
+$(document).ready(initMap);

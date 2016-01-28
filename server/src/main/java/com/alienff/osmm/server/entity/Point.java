@@ -1,5 +1,8 @@
 package com.alienff.osmm.server.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import javax.persistence.*;
 import java.time.Instant;
 
@@ -39,6 +42,7 @@ public class Point extends AbstractEntity {
 
     @ManyToOne
     @JoinColumn(name = "user_id")
+    @JsonIgnore
     public User getUser() {
         return user;
     }
@@ -48,6 +52,18 @@ public class Point extends AbstractEntity {
     }
 
     @Column(name = "timestamp")
+    @Deprecated
+    @JsonProperty("timestamp")
+    public Long getTimestampRaw() {
+        return timestamp.toEpochMilli();
+    }
+
+    public void setTimestampRaw(Long timestampRaw) {
+        timestamp = Instant.ofEpochMilli(timestampRaw);
+    }
+
+    @Transient
+    @JsonIgnore
     public Instant getTimestamp() {
         return timestamp;
     }
