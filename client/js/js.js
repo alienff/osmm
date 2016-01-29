@@ -14,7 +14,7 @@ angular.module('osmm', [])
         $scope.endpoint = "/server";
         $scope.users = {};
         $scope.trackingType = "all";
-        $scope.liveTracking = true;
+        $scope.liveTracking = false;
 
         var liveTrackingTask = null;
 
@@ -76,9 +76,15 @@ angular.module('osmm', [])
                         userLayer.addTo(map);
                     }
                 });
-            }, function(respose) {
+            }, function(response) {
                 $scope.liveTracking = false;
-                alert("Error:\n" + respose.data);
+                var text = "Error:\n";
+                if (response.data) {
+                    text += JSON.stringify(response.data, null, " ");
+                } else {
+                    text += response;
+                }
+                alert(text);
             });
         };
 
