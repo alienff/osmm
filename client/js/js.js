@@ -93,7 +93,7 @@ angular.module('osmm', [])
                 case "all":
                     return "/get-all";
                 case "last-one":
-                    return "get-last-one";
+                    return "/get-last-one";
                 default:
                     return null;
             }
