@@ -24,9 +24,9 @@
         <input type="submit" value="Load data" />
     </form>
     <div>
-        <div ng-repeat="layer in layers" style="background-color: {{layer.color}}">
-            <label for="layer-{{layer.userName}" ng-bind="layer.userName"></label>
-            <input id="layer-{{layer.user.name}}" type="checkbox" ng-model="layer.checked" ng-click="layerCheckboxOnClick(layer)" />
+        <div ng-repeat="(userName, user) in users" style="background-color: {{user.color}}">
+            <label for="user-{{userName}" ng-bind="userName"></label>
+            <input id="user-{{userName}}" type="checkbox" ng-model="user.checked" ng-click="userOnSelectedChanged(user)" />
         </div>
     </div>
     <div>
@@ -38,6 +38,10 @@
         <div>
             <label for="tracking-type-last-one">Last one</label>:
             <input type="radio" name="tracking-type" value="last-one" id="tracking-type-last-one" ng-model="trackingType" />
+        </div>
+        <div>
+            <label for="live-tracking">Live</label>:
+            <input type="checkbox" id="live-tracking" ng-model="liveTracking" />
         </div>
     </div>
 </div>

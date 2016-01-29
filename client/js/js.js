@@ -12,8 +12,11 @@ function initMap() {
 angular.module('osmm', [])
     .controller('OsmmController', function($scope, $http) {
         $scope.endpoint = "/server";
-        $scope.layers = [];
+        $scope.users = {};
         $scope.trackingType = "all";
+        $scope.liveTracking = true;
+
+        var liveTrackingTask = null;
 
         var createPointPopup = function(point) {
             return L.popup().setContent("<pre>" + JSON.stringify(point, null, " ") + "</pre>");
@@ -33,14 +36,6 @@ angular.module('osmm', [])
             return trackLayer;
         };
 
-        var createUserLayer = function(userName, trackLayers, color) {
-            var userLayer = L.layerGroup(trackLayers);
-            userLayer.userName = userName;
-            userLayer.checked = true;
-            userLayer.color = color;
-            return userLayer;
-        };
-
         var randomColor = function() {
             var safeColors = ['00','33','66','99','cc','ff'];
             var rand = function() {
@@ -54,23 +49,35 @@ angular.module('osmm', [])
 
         var loadDataForUrl = function(url) {
             $http.get(url).then(function(response) {
-                $.each($scope.layers, function(layerIndex, layer) {
-                    map.removeLayer(layer);
+                $.each($scope.users, function(userName, user) {
+                    if (user.layer) {
+                        map.removeLayer(user.layer);
+                        user.layer = null;
+                    }
                 });
-                $scope.layers = [];
                 var data = response.data;
                 $.each(data, function(userName, tracks) { // Per user
-                    var color = randomColor();
+                    if (!$scope.users.hasOwnProperty(userName)) {
+                        $scope.users[userName] = {
+                            color: randomColor(),
+                            checked: true,
+                            userName: userName
+                        };
+                    }
+                    var user = $scope.users[userName];
                     var trackLayers = [];
                     $.each(tracks, function(trackIndex, track) { // Per track
-                        var trackLayer = createTrackLayer(track, color);
+                        var trackLayer = createTrackLayer(track, user.color);
                         trackLayers.push(trackLayer);
                     });
-                    var userLayer = createUserLayer(userName, trackLayers, color);
-                    userLayer.addTo(map);
-                    $scope.layers.push(userLayer);
+                    var userLayer = L.layerGroup(trackLayers);
+                    user.layer = userLayer;
+                    if (user.checked) {
+                        userLayer.addTo(map);
+                    }
                 });
             }, function(respose) {
+                $scope.liveTracking = false;
                 alert("Error:\n" + respose.data);
             });
         };
@@ -89,13 +96,24 @@ angular.module('osmm', [])
         $scope.loadDataOnClick = function() {
             loadDataForUrl($scope.endpoint + getUrlSuffix() + "?key=" + $scope.apiKey);
         };
-        $scope.layerCheckboxOnClick = function(layer) {
-            if (layer.checked) {
-                map.addLayer(layer);
+        $scope.userOnSelectedChanged = function(user) {
+            if (user.checked) {
+                map.addLayer(user.layer);
             } else {
-                map.removeLayer(layer);
+                map.removeLayer(user.layer);
             }
         };
+
+        $scope.$watch("liveTracking", function(newValue) {
+            if (liveTrackingTask) {
+                clearInterval(liveTrackingTask);
+                liveTrackingTask = null;
+            }
+            if (newValue) {
+                liveTrackingTask = setInterval($scope.loadDataOnClick, 1000);
+                $scope.loadDataOnClick();
+            }
+        });
     });
 
 $(document).ready(initMap);
